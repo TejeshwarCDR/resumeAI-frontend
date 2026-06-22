@@ -15,13 +15,19 @@ interface ResumeVersion {
   version_label: string;
   status: "draft" | "submitted" | "archived";
   ats_score: number;
-  updated: string;
-  role: string;
+  updated_at: string;
+  updated?: string;
+  role?: string;
+}
+
+interface PortfolioItem {
+  id: string;
 }
 
 interface Completeness {
-  percentage: number;
-  message?: string;
+  score: number;
+  completed_fields: string[];
+  missing_fields: string[];
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -48,18 +54,31 @@ function StatTile({ icon, label, value, suffix, tone }: { icon: React.ReactNode;
   );
 }
 
+function formatDate(dateStr?: string) {
+  if (!dateStr) return "";
+  try {
+    return new Date(dateStr).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  } catch {
+    return dateStr;
+  }
+}
+
 export function DashboardPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { data: versions } = useApi<ResumeVersion[]>(EP.resumes);
-  const { data: completeness } = useApi<Completeness>(EP.completeness);
+  const { data: portfolioItems } = useApi<PortfolioItem[]>(EP.portfolio);
+  const { data: completenessData } = useApi<{ completeness: Completeness }>(EP.completeness);
 
   const firstName = user?.full_name?.split(" ")[0] || "there";
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
   const vList = versions || [];
-  const pct = completeness?.percentage ?? 82;
+  const portfolioCount = portfolioItems?.length ?? 0;
+  const completeness = completenessData?.completeness;
+  const pct = completeness?.score ?? 0;
+  const bestAts = vList.length > 0 ? Math.max(...vList.map((v) => Number(v.ats_score) || 0)) : 0;
 
   return (
     <div style={{ maxWidth: 1040 }}>
@@ -70,9 +89,9 @@ export function DashboardPage() {
       </PageHeader>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 22 }}>
-        <StatTile icon={<FileText size={19} strokeWidth={1.9} color="var(--ink-600)" />} label="Resume versions" value={String(vList.length || 3)} tone="blue" />
-        <StatTile icon={<Gauge size={19} strokeWidth={1.9} color="var(--brass-600)" />} label="Best ATS score" value="92" suffix="/100" tone="gold" />
-        <StatTile icon={<FolderOpen size={19} strokeWidth={1.9} color="var(--ink-600)" />} label="Portfolio items" value="11" tone="blue" />
+        <StatTile icon={<FileText size={19} strokeWidth={1.9} color="var(--ink-600)" />} label="Resume versions" value={String(vList.length)} tone="blue" />
+        <StatTile icon={<Gauge size={19} strokeWidth={1.9} color="var(--brass-600)" />} label="Best ATS score" value={bestAts > 0 ? String(Math.round(bestAts)) : "—"} suffix={bestAts > 0 ? "/100" : undefined} tone="gold" />
+        <StatTile icon={<FolderOpen size={19} strokeWidth={1.9} color="var(--ink-600)" />} label="Portfolio items" value={String(portfolioCount)} tone="blue" />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 22 }}>
@@ -97,10 +116,14 @@ export function DashboardPage() {
                 </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: "var(--font-body)", fontSize: 14.5, fontWeight: 700, color: "var(--ink-900)" }}>{r.version_label}</div>
-                  <div style={{ fontFamily: "var(--font-body)", fontSize: 12.5, color: "var(--slate-500)" }}>{r.role} · {r.updated}</div>
+                  <div style={{ fontFamily: "var(--font-body)", fontSize: 12.5, color: "var(--slate-500)" }}>
+                    {r.role && `${r.role} · `}{formatDate(r.updated || r.updated_at)}
+                  </div>
                 </div>
                 <StatusBadge status={r.status} />
-                <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 600, color: "var(--brass-800)", width: 40, textAlign: "right" }}>{r.ats_score}</span>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 600, color: "var(--brass-800)", width: 40, textAlign: "right" }}>
+                  {r.ats_score ? Math.round(Number(r.ats_score)) : "—"}
+                </span>
               </div>
             ))
           )}
@@ -112,7 +135,9 @@ export function DashboardPage() {
             <div style={{ fontFamily: "var(--font-body)", fontSize: 11, fontWeight: 600, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--brass-700)", marginBottom: 12 }}>Profile completeness</div>
             <ProgressMeter value={pct} label="Portfolio strength" />
             <div style={{ fontFamily: "var(--font-body)", fontSize: 12.5, color: "var(--slate-700)", marginTop: 12, lineHeight: 1.5 }}>
-              {completeness?.message || `Add more projects to reach a full signature.`}
+              {completeness?.missing_fields?.length
+                ? `Add ${completeness.missing_fields.join(", ")} to reach a full signature.`
+                : "Add more projects to reach a full signature."}
             </div>
             <div style={{ marginTop: 14 }}>
               <Button variant="secondary" size="sm" block onClick={() => navigate("/portfolio")}>Open portfolio</Button>
@@ -125,7 +150,7 @@ export function DashboardPage() {
               <span style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 600, color: "var(--ink-900)" }}>Gap Advisor</span>
             </div>
             <p style={{ fontFamily: "var(--font-body)", fontSize: 13, color: "var(--slate-700)", margin: "0 0 14px", lineHeight: 1.5 }}>
-              <strong style={{ color: "var(--danger-600)" }}>2 high-priority skills</strong> stand between you and Staff Engineer.
+              Identify skill gaps between your portfolio and your career goal.
             </p>
             <Button variant="ghost" size="sm" onClick={() => navigate("/gap")} iconRight={<ArrowRight size={14} strokeWidth={1.9} />}>
               See your path
