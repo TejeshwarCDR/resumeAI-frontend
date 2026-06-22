@@ -7,5 +7,16 @@ export default defineConfig({
   resolve: {
     alias: { "@": path.resolve(__dirname, "./src") },
   },
-  server: { port: 3000 },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return undefined;
+          if (id.includes("@tiptap") || id.includes("prosemirror")) return "editor";
+          return "vendor";
+        },
+      },
+    },
+  },
+  server: { port: 5173 },
 });

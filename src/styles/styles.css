@@ -44,3 +44,76 @@ button { font-family: var(--font-body); }
 @keyframes sig-spin {
   to { transform: rotate(360deg); }
 }
+
+@keyframes sig-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+}
+
+@keyframes sig-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- Resume inline editing ---- */
+.resume-a4-page [contenteditable="true"]:hover {
+  background: rgba(212, 175, 55, 0.08);
+  outline: 1px dashed rgba(212, 175, 55, 0.45);
+  border-radius: 2px;
+  cursor: text;
+}
+
+.resume-a4-page [contenteditable="true"]:focus {
+  background: rgba(212, 175, 55, 0.13);
+  outline: 2px solid rgba(212, 175, 55, 0.55);
+  border-radius: 2px;
+  cursor: text;
+}
+
+/* ---- Print & PDF export ---- */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  /* Hide all UI chrome; only the A4 resume content is printed */
+  body * {
+    visibility: hidden;
+  }
+
+  .resume-a4-page,
+  .resume-a4-page * {
+    visibility: visible !important;
+  }
+
+  .resume-a4-page {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 210mm !important;
+    height: 297mm !important;
+    padding: 16mm 14mm !important;
+    transform: none !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+    background: #fff !important;
+    font-size: 10.5pt !important;
+    /* Preserve colours and backgrounds when printing */
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Prevent orphaned section headings and mid-section page breaks */
+  .resume-section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Suppress edit outlines in print */
+  .resume-a4-page [contenteditable="true"]:hover,
+  .resume-a4-page [contenteditable="true"]:focus {
+    background: transparent !important;
+    outline: none !important;
+  }
+}
