@@ -1,12 +1,16 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Sparkles, FileText, Gauge, FolderOpen, Compass, ArrowRight } from "lucide-react";
+import { Sparkles, FileText, Gauge, FolderOpen, Compass, ArrowRight, Github, CheckCircle2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { PageContainer } from "@/components/layout/PageContainer";
 import { Card } from "@/components/data-display/Card";
 import { Badge } from "@/components/data-display/Badge";
 import { Button } from "@/components/core/Button";
 import { ProgressMeter } from "@/components/data-display/ProgressMeter";
+import { EmptyState } from "@/components/feedback/EmptyState";
+import { CardSkeleton } from "@/components/feedback/Skeleton";
 import { useApi } from "@/lib/hooks/useApi";
+import { useGitHubSync } from "@/lib/hooks/useGitHubSync";
 import { EP } from "@/lib/endpoints";
 import { useAuth } from "@/store/auth";
 
@@ -66,9 +70,10 @@ function formatDate(dateStr?: string) {
 export function DashboardPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { data: versions } = useApi<ResumeVersion[]>(EP.resumes);
-  const { data: portfolioItems } = useApi<PortfolioItem[]>(EP.portfolio);
-  const { data: completenessData } = useApi<{ completeness: Completeness }>(EP.completeness);
+  const { data: versions, loading: versionsLoading } = useApi<ResumeVersion[]>(EP.resumes);
+  const { data: portfolioItems, loading: portfolioLoading } = useApi<PortfolioItem[]>(EP.portfolio);
+  const { data: completenessData, loading: completenessLoading } = useApi<{ completeness: Completeness }>(EP.completeness);
+  const { status: githubStatus, loading: githubLoading } = useGitHubSync();
 
   const firstName = user?.full_name?.split(" ")[0] || "there";
   const hour = new Date().getHours();
@@ -79,22 +84,60 @@ export function DashboardPage() {
   const completeness = completenessData?.completeness;
   const pct = completeness?.score ?? 0;
   const bestAts = vList.length > 0 ? Math.max(...vList.map((v) => Number(v.ats_score) || 0)) : 0;
+  const isLoading = versionsLoading || portfolioLoading || completenessLoading;
+  const missing = completeness?.missing_fields ?? [];
+  const nextAction = vList.length === 0
+    ? "Generate your first resume"
+    : missing.length > 0
+      ? "Complete your profile"
+      : portfolioCount < 2
+        ? "Add more portfolio evidence"
+        : "Review your latest resume";
 
   return (
-    <div style={{ maxWidth: 1040 }}>
-      <PageHeader overline={`Welcome back, ${firstName}`} title={`${greeting}, ${firstName}.`}>
+    <PageContainer variant="wide">
+      <PageHeader
+        overline={`Welcome back, ${firstName}`}
+        title={`${greeting}, ${firstName}.`}
+        subtitle="A quick view of resume readiness, portfolio evidence, and the next best action."
+      >
         <Button variant="gold" iconLeft={<Sparkles size={16} strokeWidth={1.9} />} onClick={() => navigate("/generate")}>
-          Craft a resume
+          Generate Resume
         </Button>
       </PageHeader>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 22 }}>
+      {isLoading ? (
+        <CardSkeleton rows={4} />
+      ) : vList.length === 0 && portfolioCount === 0 ? (
+        <Card variant="seal" padding="0" style={{ marginBottom: 22 }}>
+          <EmptyState
+            title="Start with your resume foundation."
+            body="Complete your profile, add or sync projects, then generate a tailored A4 resume."
+            action={
+              <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+                <Button variant="gold" iconLeft={<Sparkles size={16} strokeWidth={1.9} />} onClick={() => navigate("/onboarding")}>Start Resume Setup</Button>
+                <Button variant="secondary" iconLeft={<Github size={16} strokeWidth={1.9} />} onClick={() => navigate("/github-sync")}>Connect GitHub</Button>
+              </div>
+            }
+          />
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, padding: "0 24px 28px" }}>
+            {["Complete profile", "Add or sync projects", "Generate resume"].map((step, idx) => (
+              <div key={step} style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 14px", background: "var(--paper-100)", borderRadius: "var(--radius-md)", fontFamily: "var(--font-body)", fontSize: 13, color: "var(--slate-700)" }}>
+                <span style={{ width: 22, height: 22, borderRadius: "50%", background: "var(--brass-100)", color: "var(--brass-700)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 12 }}>{idx + 1}</span>
+                {step}
+              </div>
+            ))}
+          </div>
+        </Card>
+      ) : null}
+
+      <div className="sig-stats-grid" style={{ marginBottom: 22 }}>
         <StatTile icon={<FileText size={19} strokeWidth={1.9} color="var(--ink-600)" />} label="Resume versions" value={String(vList.length)} tone="blue" />
         <StatTile icon={<Gauge size={19} strokeWidth={1.9} color="var(--brass-600)" />} label="Best ATS score" value={bestAts > 0 ? String(Math.round(bestAts)) : "—"} suffix={bestAts > 0 ? "/100" : undefined} tone="gold" />
         <StatTile icon={<FolderOpen size={19} strokeWidth={1.9} color="var(--ink-600)" />} label="Portfolio items" value={String(portfolioCount)} tone="blue" />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 22 }}>
+      <div className="sig-dashboard-grid">
         {/* recent resumes */}
         <Card variant="raised" padding="0">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 22px", borderBottom: "1px solid var(--line-200)" }}>
@@ -132,16 +175,52 @@ export function DashboardPage() {
         {/* right column */}
         <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
           <Card variant="seal" padding="22px">
+            <div style={{ fontFamily: "var(--font-body)", fontSize: 11, fontWeight: 600, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--brass-700)", marginBottom: 10 }}>Recommended next action</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+              <CheckCircle2 size={18} strokeWidth={1.9} color="var(--success-600)" />
+              <span style={{ fontFamily: "var(--font-display)", fontSize: 21, fontWeight: 600, color: "var(--ink-900)" }}>{nextAction}</span>
+            </div>
+            <Button
+              variant="gold"
+              size="sm"
+              block
+              onClick={() => navigate(vList.length === 0 ? "/generate" : missing.length > 0 ? "/settings" : portfolioCount < 2 ? "/portfolio" : `/resumes/${vList[0]?.id}`)}
+            >
+              Continue
+            </Button>
+          </Card>
+
+          <Card variant="seal" padding="22px">
             <div style={{ fontFamily: "var(--font-body)", fontSize: 11, fontWeight: 600, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--brass-700)", marginBottom: 12 }}>Profile completeness</div>
             <ProgressMeter value={pct} label="Portfolio strength" />
             <div style={{ fontFamily: "var(--font-body)", fontSize: 12.5, color: "var(--slate-700)", marginTop: 12, lineHeight: 1.5 }}>
-              {completeness?.missing_fields?.length
-                ? `Add ${completeness.missing_fields.join(", ")} to reach a full signature.`
-                : "Add more projects to reach a full signature."}
+              {missing.length ? `Add ${missing.join(", ")} to improve resume readiness.` : "Your foundation is ready. Keep portfolio evidence fresh."}
             </div>
             <div style={{ marginTop: 14 }}>
               <Button variant="secondary" size="sm" block onClick={() => navigate("/portfolio")}>Open portfolio</Button>
             </div>
+          </Card>
+
+          <Card variant="raised" padding="22px">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Github size={17} strokeWidth={1.9} color="var(--ink-600)" />
+                <span style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 600, color: "var(--ink-900)" }}>GitHub Sync</span>
+              </div>
+              {!githubLoading && (
+                <Badge tone={githubStatus?.connected ? (githubStatus.syncStatus === "failed" ? "danger" : "success") : "neutral"} dot={!!githubStatus?.connected}>
+                  {githubStatus?.connected ? githubStatus.syncStatus : "Not connected"}
+                </Badge>
+              )}
+            </div>
+            <p style={{ fontFamily: "var(--font-body)", fontSize: 13, color: "var(--slate-700)", margin: "0 0 14px", lineHeight: 1.5 }}>
+              {githubStatus?.connected
+                ? `${githubStatus.portfolioItemsCount} project${githubStatus.portfolioItemsCount === 1 ? "" : "s"} imported${githubStatus.lastSyncedAt ? ` · last synced ${new Date(githubStatus.lastSyncedAt).toLocaleDateString()}` : ""}.`
+                : "Connect GitHub to import repository evidence into your portfolio."}
+            </p>
+            <Button variant="secondary" size="sm" onClick={() => navigate("/github-sync")} iconRight={<ArrowRight size={14} strokeWidth={1.9} />}>
+              {githubStatus?.connected ? "Manage sync" : "Connect GitHub"}
+            </Button>
           </Card>
 
           <Card variant="raised" padding="22px">
@@ -158,6 +237,6 @@ export function DashboardPage() {
           </Card>
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }

@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import {
-  LayoutDashboard, FolderOpen, FileText, Compass,
-  Settings, Sparkles, LogOut, ChevronLeft,
+  LayoutDashboard, FolderOpen, FileText, Compass, Github,
+  Settings, Sparkles, LogOut, ChevronLeft, BriefcaseBusiness,
 } from "lucide-react";
 import { Logo }          from "@/components/brand/Logo";
 import { Seal }          from "@/components/brand/Seal";
@@ -12,14 +12,16 @@ import { useAuth }       from "@/store/auth";
 
 const NAV_ITEMS = [
   { path: "/",          label: "Dashboard",   icon: LayoutDashboard },
+  { path: "/resumes",   label: "Resume",      icon: FileText },
   { path: "/portfolio", label: "Portfolio",   icon: FolderOpen },
-  { path: "/resumes",   label: "Resumes",     icon: FileText },
+  { path: "/github-sync", label: "GitHub Sync", icon: Github },
   { path: "/gap",       label: "Gap Advisor", icon: Compass },
+  { path: "/applications", label: "Applications", icon: BriefcaseBusiness },
   { path: "/settings",  label: "Settings",    icon: Settings },
 ];
 
-const W_EXPANDED  = 244;
-const W_COLLAPSED = 64;
+const W_EXPANDED  = 260;
+const W_COLLAPSED = 72;
 const EASE = "0.25s cubic-bezier(0.4, 0, 0.2, 1)";
 
 export function AppShell() {
@@ -27,6 +29,7 @@ export function AppShell() {
   const location  = useLocation();
   const { user, logout, isAuthenticated, loading } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) navigate("/login", { replace: true });
@@ -54,9 +57,28 @@ export function AppShell() {
 
   return (
     <div style={{ display: "flex", height: "100%", minHeight: "100vh" }}>
+      <div className="sig-mobile-topbar">
+        <button
+          onClick={() => setMobileOpen(true)}
+          aria-label="Open navigation"
+          style={{ border: "1px solid var(--line-300)", background: "var(--paper-50)", borderRadius: "var(--radius-sm)", width: 38, height: 38, display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+        >
+          <Seal size={24} distressed={false} rotate={0} />
+        </button>
+        <Logo variant="wordmark" size={28} />
+        <ButtonLikeGenerate onClick={() => navigate("/generate")} />
+      </div>
+
+      {mobileOpen && (
+        <button
+          aria-label="Close navigation"
+          onClick={() => setMobileOpen(false)}
+          className="sig-mobile-overlay"
+        />
+      )}
 
       {/* ── Sidebar ── */}
-      <nav style={{
+      <nav className={mobileOpen ? "sig-sidebar sig-sidebar--open" : "sig-sidebar"} style={{
         width: sidebarW,
         flexShrink: 0,
         background: "var(--paper-50)",
@@ -78,7 +100,7 @@ export function AppShell() {
             alignItems: "center",
             justifyContent: "space-between",
             height: "100%",
-            padding: "20px 0",
+            padding: "22px 0",
           }}>
             <button
               onClick={() => setCollapsed(false)}
@@ -104,12 +126,12 @@ export function AppShell() {
             display: "flex",
             flexDirection: "column",
             height: "100%",
-            padding: "22px 16px",
+            padding: "24px 16px",
           }}>
             {/* Header: logo + collapse button */}
             <div style={{
               display: "flex", alignItems: "center", justifyContent: "space-between",
-              padding: "0 8px", marginBottom: 22,
+              padding: "0 8px", marginBottom: 24,
             }}>
               <div style={{ cursor: "pointer" }} onClick={() => navigate("/")}>
                 <Logo variant="wordmark" size={30} />
@@ -119,7 +141,7 @@ export function AppShell() {
                 title="Collapse sidebar"
                 style={{
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  width: 26, height: 26,
+                  width: 30, height: 30,
                   background: "transparent",
                   border: "1px solid var(--line-300)",
                   borderRadius: "var(--radius-sm)",
@@ -137,7 +159,7 @@ export function AppShell() {
               onClick={() => navigate("/generate")}
               style={{
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                height: 44, marginBottom: 18,
+                height: 44, marginBottom: 20,
                 background: "var(--brass-500)", color: "var(--ink-900)",
                 border: "none", borderRadius: "var(--radius-md)",
                 fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 14,
@@ -161,6 +183,7 @@ export function AppShell() {
                     onClick={() => navigate(path)}
                     style={{
                       display: "flex", alignItems: "center", gap: 11,
+                      minHeight: 42,
                       padding: "10px 12px", border: "none",
                       borderRadius: "var(--radius-sm)", cursor: "pointer", textAlign: "left",
                       background: isActive ? "var(--ink-100)" : "transparent",
@@ -212,17 +235,40 @@ export function AppShell() {
       </nav>
 
       {/* ── Main content ── */}
-      <main style={{
+      <main className="sig-main" style={{
         flex: 1,
         marginLeft: sidebarW,
         overflowY: "auto",
         background: "var(--bg-page)",
-        padding: "40px 48px",
+        padding: "var(--page-pad-y) var(--page-pad-x)",
         minHeight: "100vh",
         transition: `margin-left ${EASE}`,
       }}>
         <Outlet />
       </main>
     </div>
+  );
+}
+
+function ButtonLikeGenerate({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: 38,
+        height: 38,
+        border: "none",
+        borderRadius: "var(--radius-sm)",
+        background: "var(--brass-500)",
+        color: "var(--ink-900)",
+        boxShadow: "var(--shadow-gold)",
+      }}
+      aria-label="Generate resume"
+    >
+      <Sparkles size={16} strokeWidth={1.9} />
+    </button>
   );
 }

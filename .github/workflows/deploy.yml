@@ -1,0 +1,40 @@
+name: Frontend Deploy Readiness
+
+on:
+  workflow_dispatch:
+
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate environment example
+        run: npm run env:validate
+
+      - name: Audit dependencies
+        run: npm audit
+
+      - name: Type check
+        run: npm run type-check
+        env:
+          VITE_API_URL: https://api.example.com
+          VITE_WS_URL: wss://api.example.com
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_API_URL: https://api.example.com
+          VITE_WS_URL: wss://api.example.com

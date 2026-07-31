@@ -1,11 +1,11 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Logo } from "@/components/brand/Logo";
 import { Seal } from "@/components/brand/Seal";
 import { Button } from "@/components/core/Button";
 import { Input } from "@/components/forms/Input";
-import { Select } from "@/components/forms/Select";
 import { useAuth } from "@/store/auth";
-import { api } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
 import { EP } from "@/lib/endpoints";
 import { Mail, Lock, User, ArrowRight, ArrowLeft, KeyRound } from "lucide-react";
 
@@ -40,6 +40,7 @@ function SuccessBanner({ msg }: { msg: string }) {
 
 export function AuthPage({ mode: initialMode = "login" }: AuthPageProps) {
   const { login, register } = useAuth();
+  const navigate = useNavigate();
   const [mode, setMode] = useState<Mode>(initialMode);
 
   // Login / Register fields
@@ -47,8 +48,6 @@ export function AuthPage({ mode: initialMode = "login" }: AuthPageProps) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [university, setUniversity] = useState("");
-  const [gradYear, setGradYear] = useState("2025");
 
   // Forgot / Reset fields
   const [forgotEmail, setForgotEmail] = useState("");
@@ -59,13 +58,22 @@ export function AuthPage({ mode: initialMode = "login" }: AuthPageProps) {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
   const isLogin = mode === "login";
 
+  useEffect(() => {
+    setMode(initialMode);
+    setError(null);
+    setErrorCode(null);
+    setSuccess(null);
+  }, [initialMode]);
+
   const handleLoginRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setErrorCode(null);
     setLoading(true);
     try {
       if (isLogin) {
@@ -73,10 +81,23 @@ export function AuthPage({ mode: initialMode = "login" }: AuthPageProps) {
       } else {
         if (password !== confirmPassword) { setError("Passwords do not match"); setLoading(false); return; }
         if (password.length < 8) { setError("Password must be at least 8 characters"); setLoading(false); return; }
-        await register({ email, password, confirmPassword, full_name: fullName, university, graduation_year: parseInt(gradYear) });
+        await register({ email, password, confirmPassword, full_name: fullName });
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      if (err instanceof ApiError) {
+        setErrorCode(err.code);
+        if (err.code === "USER_NOT_FOUND") {
+          setError("User not found. Please create an account.");
+        } else if (err.code === "INVALID_PASSWORD") {
+          setError("Incorrect password. Please try again.");
+        } else if (err.code === "DATABASE_UNAVAILABLE") {
+          setError(err.message);
+        } else {
+          setError(err.status && err.status < 500 ? err.message : "Something went wrong. Please try again later.");
+        }
+      } else {
+        setError("Something went wrong. Please try again later.");
+      }
     } finally {
       setLoading(false);
     }
@@ -85,6 +106,7 @@ export function AuthPage({ mode: initialMode = "login" }: AuthPageProps) {
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setErrorCode(null);
     setSuccess(null);
     setLoading(true);
     try {
@@ -104,6 +126,7 @@ export function AuthPage({ mode: initialMode = "login" }: AuthPageProps) {
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setErrorCode(null);
     setSuccess(null);
     if (resetPassword !== resetConfirm) { setError("Passwords do not match"); return; }
     if (resetPassword.length < 8) { setError("Password must be at least 8 characters"); return; }
@@ -123,14 +146,8 @@ export function AuthPage({ mode: initialMode = "login" }: AuthPageProps) {
     }
   };
 
-  const years = Array.from({ length: 10 }, (_, i) => String(2020 + i));
-
   const panelContent = (
-    <div style={{
-      background: "var(--grad-atelier)",
-      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-      gap: 30, position: "relative", overflow: "hidden",
-    }}>
+    <div className="auth-side-panel">
       <div style={{ position: "absolute", inset: 0, backgroundImage: "radial-gradient(var(--panel-dot) 1px, transparent 1px)", backgroundSize: "22px 22px" }} />
       <div style={{ position: "absolute", width: 420, height: 420, borderRadius: "50%", background: "radial-gradient(circle, var(--panel-glow), transparent 68%)", top: -80, right: -80 }} />
       <Seal size={230} color="var(--brass-600)" ink="var(--ink-900)" />
@@ -142,11 +159,11 @@ export function AuthPage({ mode: initialMode = "login" }: AuthPageProps) {
 
   if (mode === "forgot") {
     return (
-      <div style={{ minHeight: "100vh", display: "grid", gridTemplateColumns: "1fr 1fr", background: "var(--paper-100)" }}>
-        <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", padding: "64px 88px", maxWidth: 560 }}>
+      <div className="auth-shell">
+        <div className="auth-form-panel">
           <Logo variant="wordmark" size={36} />
           <button
-            onClick={() => { setMode("login"); setError(null); setSuccess(null); }}
+            onClick={() => { setMode("login"); setError(null); setErrorCode(null); setSuccess(null); }}
             style={{ display: "flex", alignItems: "center", gap: 6, border: "none", background: "transparent", color: "var(--slate-500)", cursor: "pointer", fontFamily: "var(--font-body)", fontSize: 13, marginTop: 28, marginBottom: 8, padding: 0 }}
           >
             <ArrowLeft size={14} strokeWidth={1.9} /> Back to sign in
@@ -198,11 +215,11 @@ export function AuthPage({ mode: initialMode = "login" }: AuthPageProps) {
 
   if (mode === "reset") {
     return (
-      <div style={{ minHeight: "100vh", display: "grid", gridTemplateColumns: "1fr 1fr", background: "var(--paper-100)" }}>
-        <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", padding: "64px 88px", maxWidth: 560 }}>
+      <div className="auth-shell">
+        <div className="auth-form-panel">
           <Logo variant="wordmark" size={36} />
           <button
-            onClick={() => { setMode("forgot"); setError(null); setSuccess(null); }}
+            onClick={() => { setMode("forgot"); setError(null); setErrorCode(null); setSuccess(null); }}
             style={{ display: "flex", alignItems: "center", gap: 6, border: "none", background: "transparent", color: "var(--slate-500)", cursor: "pointer", fontFamily: "var(--font-body)", fontSize: 13, marginTop: 28, marginBottom: 8, padding: 0 }}
           >
             <ArrowLeft size={14} strokeWidth={1.9} /> Back
@@ -254,9 +271,9 @@ export function AuthPage({ mode: initialMode = "login" }: AuthPageProps) {
   }
 
   return (
-    <div style={{ minHeight: "100vh", display: "grid", gridTemplateColumns: "1fr 1fr", background: "var(--paper-100)" }}>
+    <div className="auth-shell">
       {/* form panel */}
-      <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", padding: "64px 88px", maxWidth: 560 }}>
+      <div className="auth-form-panel">
         <Logo variant="wordmark" size={36} />
 
         <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 40, color: "var(--ink-900)", margin: "40px 0 6px", letterSpacing: "-0.01em" }}>
@@ -296,38 +313,39 @@ export function AuthPage({ mode: initialMode = "login" }: AuthPageProps) {
             required
           />
           {!isLogin && (
-            <>
-              <Input
-                label="Confirm password"
-                type="password"
-                placeholder="••••••••"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                leading={<Lock size={16} strokeWidth={1.9} />}
-                required
-              />
-              <Input
-                label="University"
-                placeholder="Your university or college"
-                value={university}
-                onChange={(e) => setUniversity(e.target.value)}
-              />
-              <Select
-                label="Graduation year"
-                options={years}
-                value={gradYear}
-                onChange={(e) => setGradYear(e.target.value)}
-              />
-            </>
+            <Input
+              label="Confirm password"
+              type="password"
+              placeholder="••••••••"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              leading={<Lock size={16} strokeWidth={1.9} />}
+              required
+            />
           )}
 
-          {error && <ErrorBanner msg={error} />}
+          {error && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <ErrorBanner msg={error} />
+              {isLogin && errorCode === "USER_NOT_FOUND" && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="md"
+                  block
+                  onClick={() => { setError(null); setErrorCode(null); navigate("/register"); }}
+                >
+                  Create Account
+                </Button>
+              )}
+            </div>
+          )}
 
           {isLogin && (
             <div style={{ textAlign: "right", marginTop: -4 }}>
               <button
                 type="button"
-                onClick={() => { setMode("forgot"); setError(null); }}
+                onClick={() => { setMode("forgot"); setError(null); setErrorCode(null); }}
                 style={{ border: "none", background: "transparent", color: "var(--slate-500)", fontFamily: "var(--font-body)", fontSize: 13, cursor: "pointer", textDecoration: "underline" }}
               >
                 Forgot password?
@@ -352,7 +370,7 @@ export function AuthPage({ mode: initialMode = "login" }: AuthPageProps) {
         <div style={{ marginTop: 20, fontFamily: "var(--font-body)", fontSize: 14, color: "var(--slate-700)" }}>
           {isLogin ? "New to Signuture? " : "Already have an account? "}
           <button
-            onClick={() => { setMode(isLogin ? "register" : "login"); setError(null); }}
+            onClick={() => { setError(null); setErrorCode(null); navigate(isLogin ? "/register" : "/login"); }}
             style={{ border: "none", background: "transparent", color: "var(--ink-600)", fontWeight: 700, cursor: "pointer", fontSize: 14, fontFamily: "var(--font-body)" }}
           >
             {isLogin ? "Create your account" : "Sign in"}

@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sparkles, Copy, Trash2, Pencil, Archive } from "lucide-react";
+import { Sparkles, Copy, Trash2, Pencil, Archive, Download } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { PageContainer } from "@/components/layout/PageContainer";
 import { Card } from "@/components/data-display/Card";
 import { Badge } from "@/components/data-display/Badge";
 import { Button } from "@/components/core/Button";
@@ -11,6 +12,7 @@ import { EmptyState } from "@/components/feedback/EmptyState";
 import { useApi } from "@/lib/hooks/useApi";
 import { EP } from "@/lib/endpoints";
 import { api } from "@/lib/api";
+import { ResumeTemplateThumbnail, getResumeTemplateLabel } from "@/lib/resumeTemplates";
 
 interface ResumeVersion {
   id: string;
@@ -91,9 +93,23 @@ export function ResumesPage() {
     }
   };
 
+  const handleDownload = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    try {
+      const r = await api.get<{ url: string }>(EP.resumeExport(id));
+      window.open(r.data.url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "PDF download failed.");
+    }
+  };
+
   return (
-    <div style={{ maxWidth: 1040 }}>
-      <PageHeader overline="Your library" title="Resumes">
+    <PageContainer variant="wide">
+      <PageHeader
+        overline="Your library"
+        title="Resumes"
+        subtitle="Review, duplicate, archive, and export every generated resume version."
+      >
         <Button variant="gold" iconLeft={<Sparkles size={16} strokeWidth={1.9} />} onClick={() => navigate("/generate")}>
           Craft a resume
         </Button>
@@ -118,11 +134,13 @@ export function ResumesPage() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))", gap: 20 }}>
           {vList.map((r) => (
             <Card key={r.id} variant="raised" interactive onClick={() => navigate(`/resumes/${r.id}`)} padding="0">
-              <div style={{ height: 130, background: "linear-gradient(150deg, var(--paper-200), var(--paper-300))", display: "flex", alignItems: "center", justifyContent: "center", borderBottom: "1px solid var(--line-200)", position: "relative" }}>
-                <Seal size={80} rotate={-5} />
+              <div style={{ height: 146, background: "linear-gradient(150deg, var(--paper-200), var(--paper-300))", display: "flex", alignItems: "center", justifyContent: "center", borderBottom: "1px solid var(--line-200)", position: "relative", padding: 18 }}>
+                <div style={{ width: 142, transform: "scale(1.04)" }}>
+                  <ResumeTemplateThumbnail templateId={r.template_id || "primary"} />
+                </div>
                 <span style={{ position: "absolute", top: 12, right: 12 }}><StatusBadge status={r.status} /></span>
                 <span style={{ position: "absolute", top: 12, left: 12, fontFamily: "var(--font-mono)", fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--slate-500)" }}>
-                  {r.template_id || "modern"} · {r.page_length || "1-page"}
+                  {getResumeTemplateLabel(r.template_id)} · {r.page_length || "1-page"}
                 </span>
               </div>
               <div style={{ padding: 18 }}>
@@ -135,6 +153,13 @@ export function ResumesPage() {
                 </div>
                 <div style={{ display: "flex", gap: 6, marginTop: 14 }}>
                   <Button variant="secondary" size="sm" iconLeft={<Pencil size={13} strokeWidth={1.9} />} onClick={(e) => { e.stopPropagation(); navigate(`/resumes/${r.id}`); }}>Open</Button>
+                  <button
+                    onClick={(e) => handleDownload(e, r.id)}
+                    title="Download PDF"
+                    style={iconBtn}
+                  >
+                    <Download size={15} strokeWidth={1.9} />
+                  </button>
                   <button
                     onClick={(e) => handleDuplicate(e, r.id)}
                     title="Duplicate"
@@ -176,6 +201,6 @@ export function ResumesPage() {
           {toast}
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

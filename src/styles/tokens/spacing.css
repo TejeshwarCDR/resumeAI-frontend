@@ -46,4 +46,14 @@
   /* ---- Layout ---- */
   --container-max: 1200px; /* @kind spacing */
   --container-narrow: 760px; /* @kind spacing */
+  --sidebar-expanded: 260px; /* @kind spacing */
+  --sidebar-collapsed: 72px; /* @kind spacing */
+  --page-max-narrow: 980px; /* @kind spacing */
+  --page-max-standard: 1240px; /* @kind spacing */
+  --page-max-wide: 1480px; /* @kind spacing */
+  --page-pad-x: clamp(28px, 3.2vw, 64px); /* @kind spacing */
+  --page-pad-y: clamp(28px, 3vw, 48px); /* @kind spacing */
+  --section-gap: 24px; /* @kind spacing */
+  --grid-gap: 24px; /* @kind spacing */
+  --right-panel-width: 360px; /* @kind spacing */
 }

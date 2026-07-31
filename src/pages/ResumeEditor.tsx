@@ -35,6 +35,7 @@ interface GeneratedContent {
   summary?: string;
   experience?: Array<{ company?: string; role?: string; period?: string; bullets?: string[] }>;
   projects?: Array<{ name?: string; description?: string; tech_stack?: string[]; bullets?: string[] }>;
+  researchPapers?: Array<{ title?: string; authors?: string[]; venue?: string; year?: string; doi?: string; arxivUrl?: string; publicationUrl?: string; githubUrl?: string; description?: string; keywords?: string[]; status?: string }>;
   skills?: unknown;
   education?: Array<{ institution?: string; degree?: string; period?: string; gpa?: string }>;
   certifications?: Array<{ name?: string; issuer?: string; date?: string }>;
@@ -53,6 +54,7 @@ interface ResumeVersion {
 }
 
 const TEMPLATES = [
+  { id: "academic", label: "Academic Serif" },
   { id: "classic",  label: "Classic" },
   { id: "modern",   label: "Modern" },
   { id: "elegant",  label: "Elegant" },
@@ -72,6 +74,76 @@ const EDITOR_CSS = `
   line-height: 1.5;
   caret-color: #1a1a1a;
 }
+.resume-canvas.template-academic .ProseMirror {
+  min-height: 1123px;
+  padding: 40px 40px 48px;
+  font-family: "CMU Serif", "Latin Modern Roman", "Computer Modern", "Times New Roman", Georgia, serif;
+  font-size: 12pt;
+  line-height: 1.2;
+  color: #111;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+.resume-canvas.template-academic .ProseMirror h1 {
+  font-family: "CMU Serif", "Latin Modern Roman", "Computer Modern", "Times New Roman", Georgia, serif;
+  font-size: 25pt;
+  font-weight: 400;
+  text-align: center;
+  color: #111;
+  border-bottom: 0;
+  padding-bottom: 0;
+  margin: 0 0 5px;
+  line-height: 1.08;
+  letter-spacing: 0;
+}
+.resume-canvas.template-academic .ProseMirror h1 + p,
+.resume-canvas.template-academic .ProseMirror h1 + p + p {
+  text-align: center;
+  font-size: 12pt;
+  color: #111;
+  margin: 0 0 4px;
+  line-height: 1.2;
+}
+.resume-canvas.template-academic .ProseMirror h1 + p + p { margin-bottom: 18px; }
+.resume-canvas.template-academic .ProseMirror h2 {
+  font-family: "CMU Serif", "Latin Modern Roman", "Computer Modern", "Times New Roman", Georgia, serif;
+  font-size: 17.5pt;
+  font-weight: 500;
+  font-variant: small-caps;
+  text-transform: uppercase;
+  letter-spacing: 0;
+  color: #111;
+  border-bottom: 1px solid #222;
+  padding-bottom: 2px;
+  margin: 18px 0 10px;
+  line-height: 1.05;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+.resume-canvas.template-academic .ProseMirror p {
+  font-size: 12pt;
+  line-height: 1.2;
+  color: #111;
+  margin-bottom: 5px;
+}
+.resume-canvas.template-academic .ProseMirror ul,
+.resume-canvas.template-academic .ProseMirror ol {
+  padding-left: 18pt;
+  margin: 4px 0 8px;
+}
+.resume-canvas.template-academic .ProseMirror li {
+  font-size: 12pt;
+  line-height: 1.2;
+  color: #111;
+  margin-bottom: 2px;
+  padding-left: 2px;
+}
+.resume-canvas.template-academic .ProseMirror a {
+  color: #003399;
+  text-decoration: none;
+}
+.resume-canvas.template-academic .ProseMirror strong { font-weight: 700; }
+.resume-canvas.template-academic .ProseMirror em { font-style: italic; color: #111; }
 .resume-canvas.template-modern .ProseMirror h1 {
   font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
   font-size: 22px; font-weight: 700; color: #111;
@@ -244,7 +316,7 @@ export function ResumeEditorPage() {
   const { user } = useAuth();
 
   const { data: resume, loading } = useApi<ResumeVersion>(id ? EP.resume(id) : "");
-  const [template, setTemplate] = useState("classic");
+  const [template, setTemplate] = useState("academic");
   const [sections, setSections] = useState<ResumeSection[]>([]);
   const [headerHtml, setHeaderHtml] = useState("");
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -266,7 +338,7 @@ export function ResumeEditorPage() {
       StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
       Underline,
       TextStyle,
-      FontSize,
+      FontSize as never,
       Color,
       Highlight.configure({ multicolor: true }),
       FontFamily,
@@ -399,7 +471,7 @@ export function ResumeEditorPage() {
   // ── Render ────────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div style={{ margin: "-40px -48px", display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#f1f1f1" }}>
+      <div style={{ margin: "calc(-1 * var(--page-pad-y)) calc(-1 * var(--page-pad-x))", display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#f1f1f1" }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
           <span style={{ width: 36, height: 36, borderRadius: "50%", border: "3px solid #ddd", borderTopColor: "#b8963e", animation: "sig-spin 1s linear infinite", display: "inline-flex" }} />
           <span style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "#666" }}>Loading editor…</span>
@@ -410,7 +482,7 @@ export function ResumeEditorPage() {
 
   if (!resume) {
     return (
-      <div style={{ margin: "-40px -48px", display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh" }}>
+      <div style={{ margin: "calc(-1 * var(--page-pad-y)) calc(-1 * var(--page-pad-x))", display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh" }}>
         <div>
           <p style={{ fontFamily: "var(--font-body)", color: "#666", marginBottom: 12 }}>Resume not found.</p>
           <Button variant="secondary" onClick={() => navigate("/resumes")}>Back to resumes</Button>
@@ -443,7 +515,7 @@ export function ResumeEditorPage() {
       {/* Inject editor CSS */}
       <style>{EDITOR_CSS}</style>
 
-      <div style={{ margin: "-40px -48px", display: "flex", flexDirection: "column", minHeight: "100vh", background: "#f1f1f1" }}>
+      <div style={{ margin: "calc(-1 * var(--page-pad-y)) calc(-1 * var(--page-pad-x))", display: "flex", flexDirection: "column", minHeight: "100vh", background: "#f1f1f1" }}>
 
         {/* ── Top bar ──────────────────────────────────────────────────────────── */}
         <div style={{
@@ -510,7 +582,7 @@ export function ResumeEditorPage() {
 
           {/* Right sidebar */}
           <div style={{
-            width: 264, flexShrink: 0, overflowY: "auto",
+            width: 300, flexShrink: 0, overflowY: "auto",
             background: "var(--paper-50)", borderLeft: "1.5px solid var(--line-300)",
             padding: "20px 16px", display: "flex", flexDirection: "column", gap: 24,
           }}>

@@ -1,20 +1,36 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
-import { Sparkles, Briefcase, Building2, ArrowRight, CheckCircle2, Circle, AlertCircle } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { Sparkles, Briefcase, Building2, ArrowRight, CheckCircle2, Circle } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { PageContainer } from "@/components/layout/PageContainer";
 import { Button } from "@/components/core/Button";
 import { Input } from "@/components/forms/Input";
 import { Textarea } from "@/components/forms/Textarea";
+import { Card } from "@/components/data-display/Card";
 import { Seal } from "@/components/brand/Seal";
 import { Badge } from "@/components/data-display/Badge";
+import { ReadinessChecklist } from "@/components/data-display/ReadinessChecklist";
+import { Alert } from "@/components/feedback/Alert";
 import { api } from "@/lib/api";
 import { EP } from "@/lib/endpoints";
 import { useApi } from "@/lib/hooks/useApi";
+import { useAuth } from "@/store/auth";
+import { readableList } from "@/lib/validation";
+import {
+  ResumeTemplateThumbnail,
+  resumeTemplates,
+  type ResumeTemplateId,
+} from "@/lib/resumeTemplates";
 
-const TEMPLATES = [
-  { id: "modern",   name: "Modern",   note: "Clean, two-tone, recruiter-friendly" },
-  { id: "academic", name: "Academic", note: "Dense, publication-ready" },
-  { id: "minimal",  name: "Minimal",  note: "Quiet typography, lots of air" },
+const LANGUAGES = [
+  { value: "en", label: "English" },
+  { value: "es", label: "Spanish" },
+  { value: "fr", label: "French" },
+  { value: "de", label: "German" },
+  { value: "hi", label: "Hindi" },
+  { value: "zh", label: "Chinese" },
+  { value: "ja", label: "Japanese" },
+  { value: "pt", label: "Portuguese" },
 ];
 
 // These keys match the backend's current_stage values from the orchestrator
@@ -42,6 +58,16 @@ interface JobStatus {
 
 interface PortfolioItem {
   id: string;
+  type?: "project" | "experience" | "education" | "skill" | "certification" | "research_paper";
+}
+
+interface JobTarget {
+  id: string;
+  job_title: string;
+  company_name: string;
+  job_description: string;
+  source_url?: string | null;
+  source_platform?: string | null;
 }
 
 function StageChecklist({ stageKey, done }: { stageKey: string; done: boolean }) {
@@ -99,12 +125,19 @@ function StageChecklist({ stageKey, done }: { stageKey: string; done: boolean })
 }
 
 function GenForm({ onDone }: { onDone: (resumeId: string) => void }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const { data: portfolioItems, loading: portfolioLoading, error: portfolioError } = useApi<PortfolioItem[]>(EP.portfolio);
   const [jobTitle, setJobTitle] = useState("");
   const [company, setCompany] = useState("");
   const [jd, setJd] = useState("");
-  const [tpl, setTpl] = useState("modern");
+  const [tpl, setTpl] = useState<ResumeTemplateId>("classic-professional");
   const [len, setLen] = useState("1-page");
+  const [projectCount, setProjectCount] = useState(3);
+  const [language, setLanguage] = useState("en");
+  const [prefillJobTargetId, setPrefillJobTargetId] = useState<string | null>(null);
+  const [prefillLoading, setPrefillLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
@@ -115,6 +148,25 @@ function GenForm({ onDone }: { onDone: (resumeId: string) => void }) {
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fallbackRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const jobTargetId = params.get("jobTargetId");
+    if (!jobTargetId) return;
+
+    setPrefillLoading(true);
+    api.get<JobTarget>(EP.jobTarget(jobTargetId))
+      .then((response) => {
+        setPrefillJobTargetId(response.data.id);
+        setJobTitle(response.data.job_title);
+        setCompany(response.data.company_name);
+        setJd(response.data.job_description);
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Could not load imported job target.");
+      })
+      .finally(() => setPrefillLoading(false));
+  }, [location.search]);
 
   const stopPolling = () => {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
@@ -144,6 +196,11 @@ function GenForm({ onDone }: { onDone: (resumeId: string) => void }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const missingReasons = readinessItems.filter((item) => !item.complete).map((item) => item.label);
+    if (missingReasons.length > 0) {
+      setError(`Before generating, complete: ${readableList(missingReasons)}.`);
+      return;
+    }
     if (portfolioLoading) {
       setError("Checking your portfolio. Please wait a moment.");
       return;
@@ -152,8 +209,17 @@ function GenForm({ onDone }: { onDone: (resumeId: string) => void }) {
       setError(`Could not check your portfolio: ${portfolioError}`);
       return;
     }
+    const availableProjects = (portfolioItems ?? []).filter((item) => item.type === "project").length;
     if (!portfolioItems?.length) {
       setError("Add at least one portfolio item before generating a resume.");
+      return;
+    }
+    if (availableProjects === 0) {
+      setError("Add or sync at least one project before generating a targeted resume.");
+      return;
+    }
+    if (!Number.isInteger(projectCount) || projectCount < 1) {
+      setError("Projects to include must be at least 1.");
       return;
     }
     if (!jobTitle.trim() || !company.trim() || !jd.trim()) {
@@ -177,6 +243,9 @@ function GenForm({ onDone }: { onDone: (resumeId: string) => void }) {
         jobDescription: jd,
         templateId: tpl,
         pageLength: len,
+        outputLanguage: language,
+        projectCount,
+        ...(prefillJobTargetId ? { jobTargetId: prefillJobTargetId } : {}),
       });
       stopPolling();
       setPct(100);
@@ -199,6 +268,38 @@ function GenForm({ onDone }: { onDone: (resumeId: string) => void }) {
   }, [jobId, doneResumeId, pollStatus]);
 
   useEffect(() => () => stopPolling(), []);
+
+  const hasContact = !!user?.full_name?.trim() && (!!user?.email?.trim() || !!user?.phone_number?.trim());
+  const availableProjectCount = (portfolioItems ?? []).filter((item) => item.type === "project").length;
+  const effectiveProjectCount = Math.min(projectCount, availableProjectCount);
+  const projectCountNotice = availableProjectCount > 0 && projectCount > availableProjectCount
+    ? `You have ${availableProjectCount} project${availableProjectCount === 1 ? "" : "s"} available, so we’ll use all of them.`
+    : "We’ll rank your projects and use the most relevant ones for this job.";
+  const hasEvidence = (portfolioItems ?? []).some((item) => ["project", "experience", "education"].includes(item.type ?? "")) || (portfolioItems?.length ?? 0) > 0;
+  const hasSkill = (portfolioItems ?? []).some((item) => item.type === "skill");
+  const hasJobInputs = !!jobTitle.trim() && !!company.trim() && jd.trim().length >= 50;
+  const readinessItems = [
+    {
+      label: "Name and contact information",
+      complete: hasContact,
+      action: !hasContact ? <Button variant="ghost" size="sm" onClick={() => navigate("/settings")}>Fix</Button> : undefined,
+    },
+    {
+      label: "At least one project",
+      complete: !portfolioLoading && availableProjectCount > 0,
+      action: !portfolioLoading && availableProjectCount === 0 ? <Button variant="ghost" size="sm" onClick={() => navigate("/portfolio")}>Add</Button> : undefined,
+    },
+    {
+      label: "At least one skill",
+      complete: hasSkill,
+      action: !hasSkill ? <Button variant="ghost" size="sm" onClick={() => navigate("/portfolio")}>Add</Button> : undefined,
+    },
+    {
+      label: "Target role, company, and job description",
+      complete: hasJobInputs,
+    },
+  ];
+  const readyToGenerate = readinessItems.every((item) => item.complete) && !loading && !portfolioLoading && !portfolioError;
 
   if (generating && doneResumeId) {
     return (
@@ -265,9 +366,21 @@ function GenForm({ onDone }: { onDone: (resumeId: string) => void }) {
   }
 
   return (
-    <div style={{ maxWidth: 860 }}>
-      <PageHeader overline="New resume" title="Who are you crafting for?" />
+    <PageContainer variant="wide">
+      <PageHeader
+        overline="New resume"
+        title="Who are you crafting for?"
+        subtitle="Paste the target role once, then Signuture ranks your portfolio evidence and builds a focused resume."
+      />
 
+      {prefillLoading && (
+        <div style={{ fontFamily: "var(--font-body)", fontSize: 13.5, color: "var(--slate-600)", marginBottom: 14 }}>
+          Loading imported job target…
+        </div>
+      )}
+
+      <div className="sig-page-with-rail">
+      <Card padding="28px">
       <form onSubmit={handleSubmit}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginBottom: 18 }}>
           <Input
@@ -287,6 +400,30 @@ function GenForm({ onDone }: { onDone: (resumeId: string) => void }) {
             required
           />
         </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginBottom: 22 }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            <span style={{ fontFamily: "var(--font-body)", fontSize: 13, fontWeight: 600, color: "var(--slate-700)" }}>Output language</span>
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              style={{
+                height: 42,
+                border: "1.5px solid var(--line-300)",
+                borderRadius: "var(--radius-md)",
+                padding: "0 12px",
+                background: "var(--paper-50)",
+                fontFamily: "var(--font-body)",
+                color: "var(--ink-900)",
+              }}
+            >
+              {LANGUAGES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+            </select>
+          </label>
+          <div style={{ alignSelf: "end", fontFamily: "var(--font-body)", fontSize: 12.5, color: "var(--slate-500)", lineHeight: 1.5 }}>
+            Names, URLs, technologies, metrics, and code identifiers are preserved.
+          </div>
+        </div>
         <div style={{ marginBottom: 22 }}>
           <Textarea
             label="Paste the job description"
@@ -298,9 +435,9 @@ function GenForm({ onDone }: { onDone: (resumeId: string) => void }) {
           />
         </div>
 
-        <div style={{ fontFamily: "var(--font-body)", fontSize: 13, fontWeight: 600, color: "var(--slate-700)", marginBottom: 10 }}>Template</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 22 }}>
-          {TEMPLATES.map((t) => (
+        <div style={{ fontFamily: "var(--font-body)", fontSize: 13, fontWeight: 600, color: "var(--slate-700)", marginBottom: 10 }}>Choose Resume Template</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12, marginBottom: 22 }}>
+          {resumeTemplates.map((t) => (
             <button
               key={t.id}
               type="button"
@@ -313,12 +450,18 @@ function GenForm({ onDone }: { onDone: (resumeId: string) => void }) {
                 boxShadow: tpl === t.id ? "var(--shadow-gold)" : "var(--shadow-xs)",
                 transition: "all 0.15s ease",
               }}
+              aria-pressed={tpl === t.id}
             >
+              <ResumeTemplateThumbnail templateId={t.id} />
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ fontFamily: "var(--font-body)", fontSize: 15, fontWeight: 700, color: "var(--ink-900)" }}>{t.name}</span>
+                <span style={{ fontFamily: "var(--font-body)", fontSize: 15, fontWeight: 700, color: "var(--ink-900)", marginTop: 12 }}>{t.name}</span>
                 {tpl === t.id && <CheckCircle2 size={17} strokeWidth={1.9} color="var(--brass-600)" />}
               </div>
-              <div style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "var(--slate-500)", marginTop: 4, lineHeight: 1.4 }}>{t.note}</div>
+              <div style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "var(--slate-500)", marginTop: 4, lineHeight: 1.4 }}>{t.description}</div>
+              <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+                <Badge tone="success">ATS-friendly</Badge>
+                <Badge tone="neutral">{t.category}</Badge>
+              </div>
             </button>
           ))}
         </div>
@@ -342,25 +485,63 @@ function GenForm({ onDone }: { onDone: (resumeId: string) => void }) {
           ))}
         </div>
 
-        {(!portfolioLoading && !portfolioError && portfolioItems?.length === 0) && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: "var(--font-body)", fontSize: 13.5, color: "var(--slate-600)", marginBottom: 16, padding: "10px 14px", background: "var(--paper-200)", borderRadius: "var(--radius-md)" }}>
-            <AlertCircle size={15} strokeWidth={1.9} style={{ flexShrink: 0 }} />
-            Add a project, experience, education item, certification, or skill in Portfolio before generating.
-          </div>
-        )}
+        <div style={{ marginBottom: 24, maxWidth: 360 }}>
+          <Input
+            label="Projects to include"
+            type="number"
+            min={1}
+            max={Math.max(1, Math.min(8, availableProjectCount || 8))}
+            value={projectCount}
+            onChange={(e) => setProjectCount(Number(e.target.value))}
+            hint={projectCountNotice}
+          />
+          {availableProjectCount > 0 && (
+            <div style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "var(--slate-500)", marginTop: 6 }}>
+              {effectiveProjectCount} of {availableProjectCount} available project{availableProjectCount === 1 ? "" : "s"} will be considered for the resume.
+            </div>
+          )}
+        </div>
 
         {error && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: "var(--font-body)", fontSize: 13.5, color: "var(--danger-600)", marginBottom: 16, padding: "10px 14px", background: "var(--danger-100)", borderRadius: "var(--radius-md)" }}>
-            <AlertCircle size={15} strokeWidth={1.9} style={{ flexShrink: 0 }} />
-            {error}
-          </div>
+          <Alert tone="danger" style={{ marginBottom: 16 }}>{error}</Alert>
         )}
 
-        <Button type="submit" variant="gold" size="lg" disabled={loading || portfolioLoading || !!portfolioError || portfolioItems?.length === 0} iconLeft={<Sparkles size={18} strokeWidth={1.9} />}>
-          {loading ? "Starting…" : "Craft my resume"}
-        </Button>
+        <div style={{ display: "flex", justifyContent: "flex-end", borderTop: "1px solid var(--line-200)", paddingTop: 20 }}>
+          <Button type="submit" variant="gold" size="lg" disabled={!readyToGenerate} iconLeft={<Sparkles size={18} strokeWidth={1.9} />}>
+            {loading ? "Starting…" : "Craft my resume"}
+          </Button>
+        </div>
       </form>
-    </div>
+      </Card>
+
+      <aside className="sig-rail">
+        <Card variant="seal" padding="22px">
+          <div style={{ fontFamily: "var(--font-body)", fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--brass-700)", marginBottom: 10 }}>
+            Generation readiness
+          </div>
+          <ReadinessChecklist items={readinessItems} />
+        </Card>
+        <Card padding="20px">
+          <div style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 600, color: "var(--ink-900)", marginBottom: 8 }}>
+            Project selection
+          </div>
+          <p style={{ fontFamily: "var(--font-body)", fontSize: 13, lineHeight: 1.5, color: "var(--slate-600)", margin: "0 0 12px" }}>
+            {projectCountNotice}
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div>
+              <div style={{ fontFamily: "var(--font-display)", fontSize: 28, color: "var(--ink-900)" }}>{effectiveProjectCount}</div>
+              <div style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "var(--slate-500)" }}>Selected</div>
+            </div>
+            <div>
+              <div style={{ fontFamily: "var(--font-display)", fontSize: 28, color: "var(--ink-900)" }}>{availableProjectCount}</div>
+              <div style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "var(--slate-500)" }}>Available</div>
+            </div>
+          </div>
+        </Card>
+      </aside>
+      </div>
+    </PageContainer>
   );
 }
 

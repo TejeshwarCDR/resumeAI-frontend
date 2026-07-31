@@ -13,6 +13,10 @@ Signuture is an AI-powered resume-crafting platform that builds tailored, high-f
 - **ATS scoring panel** — Inline keyword matching, gap highlighting, and actionable suggestions against the target job description.
 - **Cover letter generation** — Tone-adjustable, voice-consistent letters derived from the same portfolio and job context.
 - **Gap Advisor** — Career-goal-aware analysis that surfaces missing skills, suggests projects to build, and recommends learning resources.
+- **LinkedIn import** — User-controlled LinkedIn export ZIP preview and selective portfolio apply.
+- **GitHub delta sync** — Frontend-visible sync summaries with imported, updated, skipped, and failed counts.
+- **Application tracker** — Track saved, preparing, applied, interview, offer, rejected, and withdrawn applications.
+- **Settings and preferences** — Account maintenance, notifications, privacy controls, and secondary profile editing.
 - **Resume library** — Versioned history of every resume generated, each with its own ATS score and export workflow.
 - **Sign & Export** — A PDF export flow with a branded "signed" seal moment.
 
@@ -32,6 +36,15 @@ Signuture is an AI-powered resume-crafting platform that builds tailored, high-f
 | Type checking | TypeScript strict mode |
 
 No CSS-in-JS library, no Tailwind, no component library. Styling is driven entirely by design tokens expressed as CSS custom properties.
+
+## Documentation
+
+Detailed documentation is available in [`Documentation/`](./Documentation/):
+
+- Environment setup
+- Deployment checklist
+- Testing and validation
+- CI/CD notes
 
 ---
 
@@ -73,7 +86,8 @@ signuture-web/
 │   │   ├── Portfolio.tsx        # Portfolio management (Experience, Projects…)
 │   │   ├── ResumeDetail.tsx     # Resume preview, ATS panel, cover letter
 │   │   ├── Resumes.tsx          # Resume library grid
-│   │   └── Settings.tsx         # Account, notifications, danger zone
+│   │   ├── Applications.tsx     # Job application tracker
+│   │   └── Settings.tsx         # Account, notifications, privacy
 │   │
 │   ├── store/
 │   │   └── auth.tsx             # AuthContext: login, register, logout, user state
@@ -105,9 +119,9 @@ signuture-web/
 
 - **Path alias `@/`** resolves to `src/`, configured in both `vite.config.ts` and `tsconfig.app.json`.
 - **No global state library** — auth is a React Context; all other data is fetched per-page via `useApi`.
-- **Polling over WebSocket** for the generation pipeline (MVP). `usePolling` hits `GET /resume/generate/status/:jobId` every 2 s until `status === "completed"`.
+- **WebSocket progress with polling fallback** for GitHub sync and long-running pipelines.
 - **Inline styles only** — no CSS modules, no Tailwind. All values are CSS custom properties from the token files, enforcing design-system adherence mechanically.
-- **Mock-first fallbacks** — every page falls back to local mock data when the API is unreachable, so the UI is fully exercisable without a live backend.
+- **Graceful fallbacks** — the UI now surfaces recoverable error states and a global app error boundary so unexpected runtime failures do not leave the experience blank.
 
 ---
 
@@ -153,8 +167,8 @@ Legacy aliases `--cream-*`, `--blue-*`, and `--gold-*` resolve 1:1 to the new na
 
 ### Prerequisites
 
-- Node.js ≥ 18
-- npm ≥ 9
+- Node.js ≥ 20.19
+- npm ≥ 10
 
 ### Install dependencies
 
@@ -171,8 +185,13 @@ cp .env.example .env
 Edit `.env` and set `VITE_API_URL` to your backend API base URL:
 
 ```
-VITE_API_URL=http://localhost:8000
+VITE_API_URL=http://localhost:3000
+VITE_WS_URL=ws://localhost:3000
 ```
+
+Only `VITE_` variables are exposed to the browser. Do not put backend secrets, database URLs, Supabase service role keys, AI API keys, GitHub client secrets, Redis URLs, or storage secrets in frontend env files.
+
+GitHub import is configured on the backend. The settings page calls the existing API client to start `GET /github/connect`, then redirects the browser to GitHub using the backend-generated URL.
 
 ---
 
@@ -240,6 +259,9 @@ Set the `signuture-api-url` secret in the Vercel dashboard to your production AP
 | Variable | Description | Example |
 |---|---|---|
 | `VITE_API_URL` | Base URL of the Signuture backend API | `https://api.signuture.com` |
+| `VITE_WS_URL` | WebSocket base URL for user-scoped progress events | `wss://api.signuture.com` |
+| `VITE_POSTHOG_KEY` | Optional PostHog browser analytics project key | `phc_...` |
+| `VITE_POSTHOG_HOST` | Optional PostHog host | `https://app.posthog.com` |
 
 All `VITE_` prefixed variables are inlined at build time by Vite. Never put secrets in these variables — they are visible in the browser bundle.
 

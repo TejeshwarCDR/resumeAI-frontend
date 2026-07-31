@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { ImageIcon, Check, Phone, Linkedin, Github, Globe, MapPin, AlertTriangle, X } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { PageContainer } from "@/components/layout/PageContainer";
 import { Card } from "@/components/data-display/Card";
 import { Button } from "@/components/core/Button";
 import { Input } from "@/components/forms/Input";
@@ -11,6 +12,7 @@ import { Avatar } from "@/components/data-display/Avatar";
 import { useAuth } from "@/store/auth";
 import { api } from "@/lib/api";
 import { EP } from "@/lib/endpoints";
+import { GitHubSection } from "@/components/github/GitHubSection";
 
 function Block({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
@@ -69,6 +71,8 @@ interface SettingsPayload {
   notif_gap_digest: boolean;
   notif_gen_complete: boolean;
   notif_sync_complete: boolean;
+  analytics_opt_out: boolean;
+  weekly_digest_opt_in: boolean;
 }
 
 const WRITING_STYLES = [
@@ -99,6 +103,8 @@ export function SettingsPage() {
   const [notifWeekly, setNotifWeekly] = useState(true);
   const [notifGen, setNotifGen] = useState(false);
   const [notifSync, setNotifSync] = useState(true);
+  const [analyticsOptOut, setAnalyticsOptOut] = useState(false);
+  const [weeklyDigestOptIn, setWeeklyDigestOptIn] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
@@ -134,6 +140,8 @@ export function SettingsPage() {
         setNotifWeekly(p.notif_gap_digest ?? true);
         setNotifGen(p.notif_gen_complete ?? false);
         setNotifSync(p.notif_sync_complete ?? true);
+        setAnalyticsOptOut(p.analytics_opt_out ?? false);
+        setWeeklyDigestOptIn(p.weekly_digest_opt_in ?? false);
       })
       .catch(() => {});
   }, []);
@@ -164,6 +172,8 @@ export function SettingsPage() {
         notif_gap_digest:    notifWeekly,
         notif_gen_complete:  notifGen,
         notif_sync_complete: notifSync,
+        analytics_opt_out:   analyticsOptOut,
+        weekly_digest_opt_in: weeklyDigestOptIn,
       });
       // Sync user in auth context so resume previews pick up new name/contact
       if (user) {
@@ -246,8 +256,32 @@ export function SettingsPage() {
   const years = Array.from({ length: 12 }, (_, i) => String(new Date().getFullYear() - 4 + i));
 
   return (
-    <div style={{ maxWidth: 760 }}>
-      <PageHeader overline="Account" title="Settings" />
+    <PageContainer variant="standard">
+      <PageHeader
+        overline="Account"
+        title="Settings"
+        subtitle="Keep account details, resume identity, integrations, and privacy controls organized."
+      />
+
+      <div className="sig-settings-layout">
+        <aside className="sig-settings-nav">
+          <Card padding="14px">
+            {["Profile", "Contact & Links", "GitHub import", "Career goal", "Writing style", "Notifications", "Danger zone"].map((item) => (
+              <div key={item} style={{
+                padding: "9px 10px",
+                borderRadius: "var(--radius-sm)",
+                fontFamily: "var(--font-body)",
+                fontSize: 13,
+                fontWeight: 600,
+                color: item === "Danger zone" ? "var(--danger-600, #dc2626)" : "var(--slate-700)",
+              }}>
+                {item}
+              </div>
+            ))}
+          </Card>
+        </aside>
+
+        <section style={{ minWidth: 0, maxWidth: 900 }}>
 
       <Block title="Profile" subtitle="Your public identity used across all resumes">
         <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20 }}>
@@ -288,6 +322,10 @@ export function SettingsPage() {
             <Input label="Portfolio / Website" value={portfolioUrl} onChange={(e) => setPortfolioUrl(e.target.value)} placeholder="yourwebsite.com" leading={<Globe size={15} strokeWidth={1.9} />} />
           </div>
         </div>
+      </Block>
+
+      <Block title="GitHub import" subtitle="Connect repositories and sync portfolio projects">
+        <GitHubSection />
       </Block>
 
       <Block title="Career goal" subtitle="Powers Gap Advisor and tailors every generated resume">
@@ -334,6 +372,8 @@ export function SettingsPage() {
           <NotifRow checked={notifWeekly} onChange={setNotifWeekly} title="Weekly gap digest" desc="A short email on skills to build next." />
           <NotifRow checked={notifGen} onChange={setNotifGen} title="Generation complete" desc="Email me when a resume finishes crafting." />
           <NotifRow checked={notifSync} onChange={setNotifSync} title="Document sync complete" desc="Email me when an upload is parsed." />
+          <NotifRow checked={weeklyDigestOptIn} onChange={setWeeklyDigestOptIn} title="Weekly career advisor highlights" desc="A private digest based on your latest portfolio and goals." />
+          <NotifRow checked={analyticsOptOut} onChange={setAnalyticsOptOut} title="Opt out of product analytics" desc="Disables privacy-safe usage analytics for this account." />
         </div>
       </Block>
 
@@ -417,6 +457,8 @@ export function SettingsPage() {
       </div>
 
       {toast && <Toast msg={toast.msg} type={toast.type} />}
-    </div>
+        </section>
+      </div>
+    </PageContainer>
   );
 }

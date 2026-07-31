@@ -15,3 +15,4 @@ export { Stepper } from "./navigation/Stepper";
 export { LoadingSpinner } from "./feedback/LoadingSpinner";
 export { EmptyState } from "./feedback/EmptyState";
 export { PageHeader } from "./layout/PageHeader";
+export { PageContainer } from "./layout/PageContainer";

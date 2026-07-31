@@ -7,10 +7,12 @@ import { DashboardPage }     from "@/pages/Dashboard";
 import { PortfolioPage }     from "@/pages/Portfolio";
 import { ResumesPage }       from "@/pages/Resumes";
 import { GeneratePage }      from "@/pages/Generate";
+import { GitHubSyncPage }    from "@/pages/GitHubSync";
 import { ResumeDetailPage }  from "@/pages/ResumeDetail";
 import { ResumeEditorPage }  from "@/pages/ResumeEditor";
 import { GapAdvisorPage }    from "@/pages/GapAdvisor";
 import { SettingsPage }      from "@/pages/Settings";
+import { ApplicationsPage }  from "@/pages/Applications";
 import { LoadingSpinner }    from "@/components/feedback/LoadingSpinner";
 import { useAuth }           from "@/store/auth";
 
@@ -51,11 +53,13 @@ export const router = createBrowserRouter([
     children: [
       { index: true,               element: <DashboardPage /> },
       { path: "portfolio",         element: <PortfolioPage /> },
+      { path: "github-sync",       element: <GitHubSyncPage /> },
       { path: "resumes",           element: <ResumesPage /> },
       { path: "resumes/:id",       element: <ResumeDetailPage /> },
       { path: "resumes/:id/edit",  element: <ResumeEditorPage /> },
       { path: "generate",          element: <GeneratePage /> },
       { path: "gap",               element: <GapAdvisorPage /> },
+      { path: "applications",      element: <ApplicationsPage /> },
       { path: "settings",          element: <SettingsPage /> },
     ],
   },

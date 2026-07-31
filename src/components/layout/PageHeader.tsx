@@ -3,13 +3,14 @@ import React from "react";
 interface PageHeaderProps {
   overline?: string;
   title: string;
+  subtitle?: string;
   children?: React.ReactNode;
 }
 
-export function PageHeader({ overline, title, children }: PageHeaderProps) {
+export function PageHeader({ overline, title, subtitle, children }: PageHeaderProps) {
   return (
-    <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 26 }}>
-      <div>
+    <div className="sig-page-header" style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 24, marginBottom: 30 }}>
+      <div style={{ minWidth: 0 }}>
         {overline && (
           <div style={{
             fontFamily: "var(--font-body)",
@@ -32,8 +33,20 @@ export function PageHeader({ overline, title, children }: PageHeaderProps) {
         }}>
           {title}
         </h1>
+        {subtitle && (
+          <p style={{
+            fontFamily: "var(--font-body)",
+            fontSize: 14.5,
+            color: "var(--slate-600)",
+            lineHeight: 1.55,
+            margin: "8px 0 0",
+            maxWidth: 720,
+          }}>
+            {subtitle}
+          </p>
+        )}
       </div>
-      {children && <div style={{ display: "flex", gap: 10 }}>{children}</div>}
+      {children && <div className="sig-page-header-actions" style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>{children}</div>}
     </div>
   );
 }

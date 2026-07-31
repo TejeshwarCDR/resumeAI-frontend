@@ -1,6 +1,6 @@
 import React from "react";
 
-interface CardProps {
+interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   variant?: "default" | "raised" | "seal";
   interactive?: boolean;
   padding?: string | number;
